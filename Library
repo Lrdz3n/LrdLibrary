@@ -1,646 +1,415 @@
---[[
-    StunningUI Library
-    Version: 1.0.0
-    Author: Assistant
-    License: MIT
-    
-    A modern, feature-rich UI library for Roblox
-    with stunning animations and extensive functionality
---]]
-
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
-local TextService = game:GetService("TextService")
 
-local StunningUI = {
-    _version = "1.0.0",
-    _windows = {},
-    _activeWindow = nil,
-    _theme = {
-        Primary = Color3.fromRGB(65, 105, 225),
-        Secondary = Color3.fromRGB(45, 45, 55),
-        Background = Color3.fromRGB(30, 30, 35),
-        Text = Color3.fromRGB(255, 255, 255),
-        Accent = Color3.fromRGB(85, 125, 245),
-        Success = Color3.fromRGB(46, 204, 113),
-        Warning = Color3.fromRGB(241, 196, 15),
-        Error = Color3.fromRGB(231, 76, 60),
-        Disabled = Color3.fromRGB(150, 150, 150)
-    },
-    _animations = {
-        Default = {
-            Time = 0.3,
-            Style = Enum.EasingStyle.Quint,
-            Direction = Enum.EasingDirection.Out
-        },
-        Fast = {
-            Time = 0.15,
-            Style = Enum.EasingStyle.Quad,
-            Direction = Enum.EasingDirection.Out
-        },
-        Bounce = {
-            Time = 0.5,
-            Style = Enum.EasingStyle.Bounce,
-            Direction = Enum.EasingDirection.Out
-        }
-    },
-    _fonts = {
-        Title = Enum.Font.GothamBold,
-        Subtitle = Enum.Font.GothamSemibold,
-        Text = Enum.Font.Gotham,
-        Code = Enum.Font.Code
-    },
-    _shadows = {
-        Light = {
-            Transparency = 0.9,
-            Size = UDim2.new(1, 4, 1, 4),
-            Position = UDim2.new(0, -2, 0, -2)
-        },
-        Medium = {
-            Transparency = 0.8,
-            Size = UDim2.new(1, 6, 1, 6),
-            Position = UDim2.new(0, -3, 0, -3)
-        },
-        Dark = {
-            Transparency = 0.7,
-            Size = UDim2.new(1, 8, 1, 8),
-            Position = UDim2.new(0, -4, 0, -4)
-        }
-    }
-}
+local Components = {}
 
 -- Utility Functions
-local function createTween(object, info, properties)
-    local tween = TweenService:Create(object, TweenInfo.new(
-        info.Time,
-        info.Style,
-        info.Direction
-    ), properties)
-    return tween
-end
-
-local function createShadow(parent, shadowInfo)
-    local shadow = Instance.new("ImageLabel")
-    shadow.Name = "Shadow"
-    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-    shadow.BackgroundTransparency = 1
-    shadow.Position = shadowInfo.Position
-    shadow.Size = shadowInfo.Size
-    shadow.Image = "rbxassetid://5554236805"
-    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-    shadow.ImageTransparency = shadowInfo.Transparency
-    shadow.ZIndex = parent.ZIndex - 1
-    shadow.Parent = parent
-    return shadow
-end
-
-local function createRipple(parent)
+local function createRipple(parent, rippleColor)
     local ripple = Instance.new("Frame")
     ripple.Name = "Ripple"
     ripple.AnchorPoint = Vector2.new(0.5, 0.5)
-    ripple.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    ripple.BackgroundColor3 = rippleColor or Color3.fromRGB(255, 255, 255)
     ripple.BackgroundTransparency = 0.8
+    ripple.BorderSizePixel = 0
     ripple.Position = UDim2.new(0.5, 0, 0.5, 0)
     ripple.Size = UDim2.new(0, 0, 0, 0)
-    
+
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(1, 0)
     corner.Parent = ripple
-    
+
     ripple.Parent = parent
-    
-    local targetSize = UDim2.new(1.5, 0, 1.5, 0)
-    local fadeOut = createTween(ripple, StunningUI._animations.Default, {
+
+    local targetSize = UDim2.new(2, 0, 2, 0)
+    TweenService:Create(ripple, TweenInfo.new(0.5), {
         Size = targetSize,
         BackgroundTransparency = 1
-    })
-    
-    fadeOut:Play()
-    fadeOut.Completed:Connect(function()
-        ripple:Destroy()
-    end)
+    }):Play()
+
+    game:GetService("Debris"):AddItem(ripple, 0.5)
 end
 
--- Core UI Components
-function StunningUI.new(title, theme)
-    local window = {}
-    window._objects = {}
-    window._theme = theme or StunningUI._theme
-    
-    -- Create ScreenGui
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "StunningUI"
-    gui.ResetOnSpawn = false
-    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    
-    -- Try to parent to CoreGui
-    pcall(function()
-        gui.Parent = CoreGui
-    end)
-    
-    -- If failed, parent to PlayerGui
-    if not gui.Parent then
-        gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
-    end
-    
-    -- Create main window frame
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainWindow"
-    mainFrame.Size = UDim2.new(0, 600, 0, 400)
-    mainFrame.Position = UDim2.new(0.5, -300, 0.5, -200)
-    mainFrame.BackgroundColor3 = window._theme.Background
-    mainFrame.BorderSizePixel = 0
-    mainFrame.Parent = gui
-    
-    -- Add rounded corners
+-- Advanced Components
+function Components.createColorPicker(parent, default, callback)
+    local picker = Instance.new("Frame")
+    picker.Size = UDim2.new(1, 0, 0, 120)
+    picker.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    picker.BorderSizePixel = 0
+
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 10)
-    corner.Parent = mainFrame
-    
-    -- Add shadow
-    createShadow(mainFrame, StunningUI._shadows.Medium)
-    
-    -- Create title bar
-    local titleBar = Instance.new("Frame")
-    titleBar.Name = "TitleBar"
-    titleBar.Size = UDim2.new(1, 0, 0, 40)
-    titleBar.BackgroundColor3 = window._theme.Primary
-    titleBar.BorderSizePixel = 0
-    titleBar.Parent = mainFrame
-    
-    local titleCorner = Instance.new("UICorner")
-    titleCorner.CornerRadius = UDim.new(0, 10)
-    titleCorner.Parent = titleBar
-    
-    -- Create title text
-    local titleText = Instance.new("TextLabel")
-    titleText.Name = "Title"
-    titleText.Size = UDim2.new(1, -40, 1, 0)
-    titleText.Position = UDim2.new(0, 20, 0, 0)
-    titleText.BackgroundTransparency = 1
-    titleText.Font = StunningUI._fonts.Title
-    titleText.Text = title
-    titleText.TextColor3 = window._theme.Text
-    titleText.TextSize = 18
-    titleText.TextXAlignment = Enum.TextXAlignment.Left
-    titleText.Parent = titleBar
-    
-    -- Create close button
-    local closeButton = Instance.new("TextButton")
-    closeButton.Name = "CloseButton"
-    closeButton.Size = UDim2.new(0, 30, 0, 30)
-    closeButton.Position = UDim2.new(1, -35, 0, 5)
-    closeButton.BackgroundColor3 = window._theme.Error
-    closeButton.Text = "×"
-    closeButton.TextColor3 = window._theme.Text
-    closeButton.TextSize = 20
-    closeButton.Font = StunningUI._fonts.Title
-    closeButton.AutoButtonColor = false
-    closeButton.Parent = titleBar
-    
-    local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0, 8)
-    closeCorner.Parent = closeButton
-    
-    -- Create content container
-    local content = Instance.new("Frame")
-    content.Name = "Content"
-    content.Size = UDim2.new(1, -20, 1, -60)
-    content.Position = UDim2.new(0, 10, 0, 50)
-    content.BackgroundTransparency = 1
-    content.Parent = mainFrame
-    
-    -- Add scrolling
-    local scrollFrame = Instance.new("ScrollingFrame")
-    scrollFrame.Name = "ScrollFrame"
-    scrollFrame.Size = UDim2.new(1, 0, 1, 0)
-    scrollFrame.BackgroundTransparency = 1
-    scrollFrame.BorderSizePixel = 0
-    scrollFrame.ScrollBarThickness = 4
-    scrollFrame.ScrollBarImageColor3 = window._theme.Primary
-    scrollFrame.Parent = content
-    
-    local listLayout = Instance.new("UIListLayout")
-    listLayout.Padding = UDim.new(0, 10)
-    listLayout.Parent = scrollFrame
-    
-    -- Window functionality
-    function window:AddButton(text, callback)
-        local button = Instance.new("TextButton")
-        button.Name = text
-        button.Size = UDim2.new(1, 0, 0, 40)
-        button.BackgroundColor3 = self._theme.Secondary
-        button.Text = text
-        button.TextColor3 = self._theme.Text
-        button.TextSize = 16
-        button.Font = StunningUI._fonts.Text
-        button.AutoButtonColor = false
-        
-        local buttonCorner = Instance.new("UICorner")
-        buttonCorner.CornerRadius = UDim.new(0, 8)
-        buttonCorner.Parent = button
-        
-        -- Add hover effect
-        button.MouseEnter:Connect(function()
-            createTween(button, StunningUI._animations.Fast, {
-                BackgroundColor3 = self._theme.Accent
-            }):Play()
-        end)
-        
-        button.MouseLeave:Connect(function()
-            createTween(button, StunningUI._animations.Fast, {
-                BackgroundColor3 = self._theme.Secondary
-            }):Play()
-        end)
-        
-        -- Add click effect
-        button.MouseButton1Down:Connect(function()
-            createRipple(button)
-            if callback then callback() end
-        end)
-        
-        button.Parent = scrollFrame
-        return button
-    end
-    
-    function window:AddToggle(text, default, callback)
-        local toggle = Instance.new("Frame")
-        toggle.Name = text
-        toggle.Size = UDim2.new(1, 0, 0, 40)
-        toggle.BackgroundColor3 = self._theme.Secondary
-        
-        local toggleCorner = Instance.new("UICorner")
-        toggleCorner.CornerRadius = UDim.new(0, 8)
-        toggleCorner.Parent = toggle
-        
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -60, 1, 0)
-        label.Position = UDim2.new(0, 10, 0, 0)
-        label.BackgroundTransparency = 1
-        label.Text = text
-        label.TextColor3 = self._theme.Text
-        label.TextSize = 16
-        label.Font = StunningUI._fonts.Text
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Parent = toggle
-        
-        local switch = Instance.new("Frame")
-        switch.Name = "Switch"
-        switch.Size = UDim2.new(0, 40, 0, 20)
-        switch.Position = UDim2.new(1, -50, 0.5, -10)
-        switch.BackgroundColor3 = default and self._theme.Success or self._theme.Error
-        switch.Parent = toggle
-        
-        local switchCorner = Instance.new("UICorner")
-        switchCorner.CornerRadius = UDim.new(1, 0)
-        switchCorner.Parent = switch
-        
-        local knob = Instance.new("Frame")
-        knob.Name = "Knob"
-        knob.Size = UDim2.new(0, 16, 0, 16)
-        knob.Position = default and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
-        knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        knob.Parent = switch
-        
-        local knobCorner = Instance.new("UICorner")
-        knobCorner.CornerRadius = UDim.new(1, 0)
-        knobCorner.Parent = knob
-        
-        local enabled = default or false
-        
-        local function updateToggle()
-            enabled = not enabled
-            
-            createTween(switch, StunningUI._animations.Fast, {
-                BackgroundColor3 = enabled and self._theme.Success or self._theme.Error
-            }):Play()
-            
-            createTween(knob, StunningUI._animations.Fast, {
-                Position = enabled and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
-            }):Play()
-            
-            if callback then callback(enabled) end
-        end
-        
-        toggle.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                updateToggle()
-            end
-        end)
-        
-        toggle.Parent = scrollFrame
-        return toggle
-    end
-    
-    function window:AddSlider(text, min, max, default, callback)
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = picker
+
+    local preview = Instance.new("Frame")
+    preview.Size = UDim2.new(0, 50, 0, 50)
+    preview.Position = UDim2.new(0, 10, 0, 10)
+    preview.BackgroundColor3 = default or Color3.fromRGB(255, 0, 0)
+    preview.Parent = picker
+
+    local previewCorner = Instance.new("UICorner")
+    previewCorner.CornerRadius = UDim.new(0, 6)
+    previewCorner.Parent = preview
+
+    local function createSlider(name, defaultValue, color)
         local slider = Instance.new("Frame")
-        slider.Name = text
-        slider.Size = UDim2.new(1, 0, 0, 60)
-        slider.BackgroundColor3 = self._theme.Secondary
-        
+        slider.Name = name
+        slider.Size = UDim2.new(0.6, 0, 0, 20)
+        slider.Position = UDim2.new(0.35, 0, 0, 10 + (#picker:GetChildren() - 2) * 25)
+        slider.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+        slider.Parent = picker
+
         local sliderCorner = Instance.new("UICorner")
-        sliderCorner.CornerRadius = UDim.new(0, 8)
+        sliderCorner.CornerRadius = UDim.new(0, 4)
         sliderCorner.Parent = slider
-        
+
+        local fill = Instance.new("Frame")
+        fill.Size = UDim2.new(defaultValue/255, 0, 1, 0)
+        fill.BackgroundColor3 = color
+        fill.BorderSizePixel = 0
+        fill.Parent = slider
+
+        local fillCorner = Instance.new("UICorner")
+        fillCorner.CornerRadius = UDim.new(0, 4)
+        fillCorner.Parent = fill
+
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -20, 0, 30)
-        label.Position = UDim2.new(0, 10, 0, 0)
+        label.Size = UDim2.new(0.3, 0, 1, 0)
+        label.Position = UDim2.new(-0.35, 0, 0, 0)
         label.BackgroundTransparency = 1
-        label.Text = text
-        label.TextColor3 = self._theme.Text
-        label.TextSize = 16
-        label.Font = StunningUI._fonts.Text
-        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Text = name
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        label.TextSize = 14
         label.Parent = slider
-        
-        local valueLabel = Instance.new("TextLabel")
-        valueLabel.Size = UDim2.new(0, 50, 0, 30)
-        valueLabel.Position = UDim2.new(1, -60, 0, 0)
-        valueLabel.BackgroundTransparency = 1
-        valueLabel.Text = tostring(default)
-        valueLabel.TextColor3 = self._theme.Text
-        valueLabel.TextSize = 16
-        valueLabel.Font = StunningUI._fonts.Text
-        valueLabel.Parent = slider
-        
-        local sliderBar = Instance.new("Frame")
-        sliderBar.Name = "SliderBar"
-        sliderBar.Size = UDim2.new(1, -20, 0, 4)
-        sliderBar.Position = UDim2.new(0, 10, 0, 40)
-        sliderBar.BackgroundColor3 = self._theme.Background
-        sliderBar.Parent = slider
-        
-        local sliderBarCorner = Instance.new("UICorner")
-        sliderBarCorner.CornerRadius = UDim.new(1, 0)
-        sliderBarCorner.Parent = sliderBar
-        
-        local sliderFill = Instance.new("Frame")
-        sliderFill.Name = "SliderFill"
-        sliderFill.Size = UDim2.new((default - min)/(max - min), 0, 1, 0)
-        sliderFill.BackgroundColor3 = self._theme.Primary
-        sliderFill.Parent = sliderBar
-        
-        local sliderFillCorner = Instance.new("UICorner")
-        sliderFillCorner.CornerRadius = UDim.new(1, 0)
-        sliderFillCorner.Parent = sliderFill
-        
-        local knob = Instance.new("Frame")
-        knob.Name = "Knob"
-        knob.Size = UDim2.new(0, 16, 0, 16)
-        knob.Position = UDim2.new((default - min)/(max - min), -8, 0.5, -8)
-        knob.BackgroundColor3 = self._theme.Primary
-        knob.Parent = sliderBar
-        
-        local knobCorner = Instance.new("UICorner")
-        knobCorner.CornerRadius = UDim.new(1, 0)
-        knobCorner.Parent = knob
-        
+
+        local value = Instance.new("TextBox")
+        value.Size = UDim2.new(0, 40, 1, 0)
+        value.Position = UDim2.new(1.1, 0, 0, 0)
+        value.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+        value.Text = tostring(defaultValue)
+        value.TextColor3 = Color3.fromRGB(255, 255, 255)
+        value.TextSize = 14
+        value.Parent = slider
+
+        local valueCorner = Instance.new("UICorner")
+        valueCorner.CornerRadius = UDim.new(0, 4)
+        valueCorner.Parent = value
+
         local dragging = false
-        
-        knob.InputBegan:Connect(function(input)
+
+        slider.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 dragging = true
             end
         end)
-        
-        UserInputService.InputEnded:Connect(function(input)
+
+        slider.InputEnded:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 dragging = false
             end
         end)
-        
+
         UserInputService.InputChanged:Connect(function(input)
             if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                local mousePos = UserInputService:GetMouseLocation()
-                local relativePos = mousePos.X - sliderBar.AbsolutePosition.X
-                local percentage = math.clamp(relativePos / sliderBar.AbsoluteSize.X, 0, 1)
-                local value = math.floor(min + (max - min) * percentage)
-                
-                createTween(sliderFill, StunningUI._animations.Fast, {
-                    Size = UDim2.new(percentage, 0, 1, 0)
-                }):Play()
-                
-                createTween(knob, StunningUI._animations.Fast, {
-                    Position = UDim2.new(percentage, -8, 0.5, -8)
-                }):Play()
-                
-                valueLabel.Text = tostring(value)
-                
-                if callback then callback(value) end
+                local percentage = math.clamp((input.Position.X - slider.AbsolutePosition.X) / slider.AbsoluteSize.X, 0, 1)
+                local newValue = math.floor(percentage * 255)
+                fill.Size = UDim2.new(percentage, 0, 1, 0)
+                value.Text = tostring(newValue)
+                return newValue
             end
         end)
-        
-        slider.Parent = scrollFrame
+
         return slider
     end
-    
-    function window:AddDropdown(text, options, default, callback)
-        local dropdown = Instance.new("Frame")
-        dropdown.Name = text
-        dropdown.Size = UDim2.new(1, 0, 0, 40)
-        dropdown.BackgroundColor3 = self._theme.Secondary
-        dropdown.ClipsDescendants = true
-        
-        local dropdownCorner = Instance.new("UICorner")
-        dropdownCorner.CornerRadius = UDim.new(0, 8)
-        dropdownCorner.Parent = dropdown
-        
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -40, 1, 0)
-        label.Position = UDim2.new(0, 10, 0, 0)
-        label.BackgroundTransparency = 1
-        label.Text = text
-        label.TextColor3 = self._theme.Text
-        label.TextSize = 16
-        label.Font = StunningUI._fonts.Text
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Parent = dropdown
-        
-        local arrow = Instance.new("TextLabel")
-        arrow.Size = UDim2.new(0, 20, 0, 20)
-        arrow.Position = UDim2.new(1, -30, 0.5, -10)
-        arrow.BackgroundTransparency = 1
-        arrow.Text = "▼"
-        arrow.TextColor3 = self._theme.Text
-        arrow.TextSize = 14
-        arrow.Font = StunningUI._fonts.Text
-        arrow.Parent = dropdown
-        
-        local optionsFrame = Instance.new("Frame")
-        optionsFrame.Name = "Options"
-        optionsFrame.Size = UDim2.new(1, 0, 0, #options * 30)
-        optionsFrame.Position = UDim2.new(0, 0, 1, 0)
-        optionsFrame.BackgroundTransparency = 1
-        optionsFrame.Visible = false
-        optionsFrame.Parent = dropdown
-        
-        local optionsList = Instance.new("UIListLayout")
-        optionsList.Padding = UDim.new(0, 5)
-        optionsList.Parent = optionsFrame
-        
-        local selected = default or options[1]
-        local expanded = false
-        
-        local function createOption(text)
-            local option = Instance.new("TextButton")
-            option.Size = UDim2.new(1, 0, 0, 30)
-            option.BackgroundColor3 = self._theme.Background
-            option.Text = text
-            option.TextColor3 = self._theme.Text
-            option.TextSize = 14
-            option.Font = StunningUI._fonts.Text
-            
-            local optionCorner = Instance.new("UICorner")
-            optionCorner.CornerRadius = UDim.new(0, 6)
-            optionCorner.Parent = option
-            
-            option.MouseButton1Click:Connect(function()
-                selected = text
-                label.Text = text
-                
-                createTween(dropdown, StunningUI._animations.Default, {
-                    Size = UDim2.new(1, 0, 0, 40)
-                }):Play()
-                
-                createTween(arrow, StunningUI._animations.Default, {
-                    Rotation = 0
-                }):Play()
-                
-                expanded = false
-                if callback then callback(selected) end
-            end)
-            
-            option.Parent = optionsFrame
-            return option
-        end
-        
-        for _, option in ipairs(options) do
-            createOption(option)
-        end
-        
-        dropdown.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                expanded = not expanded
-                
-                createTween(dropdown, StunningUI._animations.Default, {
-                    Size = expanded and UDim2.new(1, 0, 0, 40 + optionsFrame.AbsoluteSize.Y + 10) or UDim2.new(1, 0, 0, 40)
-                }):Play()
-                
-                createTween(arrow, StunningUI._animations.Default, {
-                    Rotation = expanded and 180 or 0
-                }):Play()
-                
-                optionsFrame.Visible = expanded
-            end
-        end)
-        
-        dropdown.Parent = scrollFrame
-        return dropdown
+
+    local rSlider = createSlider("R", default and math.floor(default.R * 255) or 255, Color3.fromRGB(255, 0, 0))
+    local gSlider = createSlider("G", default and math.floor(default.G * 255) or 0, Color3.fromRGB(0, 255, 0))
+    local bSlider = createSlider("B", default and math.floor(default.B * 255) or 0, Color3.fromRGB(0, 0, 255))
+
+    local function updateColor()
+        local r = tonumber(rSlider.TextBox.Text)
+        local g = tonumber(gSlider.TextBox.Text)
+        local b = tonumber(bSlider.TextBox.Text)
+        local newColor = Color3.fromRGB(r, g, b)
+        preview.BackgroundColor3 = newColor
+        if callback then callback(newColor) end
     end
-    
-    function window:AddTextbox(text, placeholder, callback)
-        local textbox = Instance.new("Frame")
-        textbox.Name = text
-        textbox.Size = UDim2.new(1, 0, 0, 70)
-        textbox.BackgroundColor3 = self._theme.Secondary
-        
-        local textboxCorner = Instance.new("UICorner")
-        textboxCorner.CornerRadius = UDim.new(0, 8)
-        textboxCorner.Parent = textbox
-        
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -20, 0, 30)
-        label.Position = UDim2.new(0, 10, 0, 0)
-        label.BackgroundTransparency = 1
-        label.Text = text
-        label.TextColor3 = self._theme.Text
-        label.TextSize = 16
-        label.Font = StunningUI._fonts.Text
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Parent = textbox
-        
-        local input = Instance.new("TextBox")
-        input.Size = UDim2.new(1, -20, 0, 30)
-        input.Position = UDim2.new(0, 10, 0, 30)
-        input.BackgroundColor3 = self._theme.Background
-        input.Text = ""
-        input.PlaceholderText = placeholder
-        input.TextColor3 = self._theme.Text
-        input.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
-        input.TextSize = 14
-        input.Font = StunningUI._fonts.Text
-        input.ClearTextOnFocus = false
-        
-        local inputCorner = Instance.new("UICorner")
-        inputCorner.CornerRadius = UDim.new(0, 6)
-        inputCorner.Parent = input
-        
-        input.Focused:Connect(function()
-            createTween(input, StunningUI._animations.Fast, {
-                BackgroundColor3 = self._theme.Primary
-            }):Play()
-        end)
-        
-        input.FocusLost:Connect(function(enterPressed)
-            createTween(input, StunningUI._animations.Fast, {
-                BackgroundColor3 = self._theme.Background
-            }):Play()
-            
-            if enterPressed and callback then
-                callback(input.Text)
-            end
-        end)
-        
-        input.Parent = textbox
-        textbox.Parent = scrollFrame
-        return textbox
-    end
-    
-    -- Make window draggable
-    local dragging, dragInput, dragStart, startPos
-    
-    titleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = mainFrame.Position
-            
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
-    end)
-    
-    titleBar.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then
-            dragInput = input
-        end
-    end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            local delta = input.Position - dragStart
-            mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
-                                         startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-    
-    -- Close button functionality
-    closeButton.MouseButton1Click:Connect(function()
-        createTween(mainFrame, StunningUI._animations.Default, {
-            Position = UDim2.new(0.5, -300, 1.5, 0),
-            BackgroundTransparency = 1
-        }):Play()
-        wait(0.5)
-        gui:Destroy()
-    end)
-    
-    return window
+
+    rSlider.TextBox.FocusLost:Connect(updateColor)
+    gSlider.TextBox.FocusLost:Connect(updateColor)
+    bSlider.TextBox.FocusLost:Connect(updateColor)
+
+    picker.Parent = parent
+    return picker
 end
 
-return StunningUI 
+function Components.createNotification(title, message, type)
+    local notification = Instance.new("Frame")
+    notification.Size = UDim2.new(0, 300, 0, 80)
+    notification.Position = UDim2.new(1, -320, 1, -100)
+    notification.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    notification.BorderSizePixel = 0
+    notification.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("StunningUI")
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = notification
+
+    local icon = Instance.new("ImageLabel")
+    icon.Size = UDim2.new(0, 30, 0, 30)
+    icon.Position = UDim2.new(0, 10, 0, 10)
+    icon.BackgroundTransparency = 1
+    
+    -- Set icon based on type
+    if type == "success" then
+        icon.Image = "rbxassetid://6031068433"
+        icon.ImageColor3 = Color3.fromRGB(46, 204, 113)
+    elseif type == "warning" then
+        icon.Image = "rbxassetid://6031071053"
+        icon.ImageColor3 = Color3.fromRGB(241, 196, 15)
+    elseif type == "error" then
+        icon.Image = "rbxassetid://6031071057"
+        icon.ImageColor3 = Color3.fromRGB(231, 76, 60)
+    else
+        icon.Image = "rbxassetid://6031068426"
+        icon.ImageColor3 = Color3.fromRGB(52, 152, 219)
+    end
+    
+    icon.Parent = notification
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -60, 0, 30)
+    titleLabel.Position = UDim2.new(0, 50, 0, 10)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = title
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.TextSize = 16
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.Parent = notification
+
+    local messageLabel = Instance.new("TextLabel")
+    messageLabel.Size = UDim2.new(1, -20, 0, 30)
+    messageLabel.Position = UDim2.new(0, 10, 0, 40)
+    messageLabel.BackgroundTransparency = 1
+    messageLabel.Text = message
+    messageLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    messageLabel.TextSize = 14
+    messageLabel.TextXAlignment = Enum.TextXAlignment.Left
+    messageLabel.TextWrapped = true
+    messageLabel.Font = Enum.Font.Gotham
+    messageLabel.Parent = notification
+
+    -- Animate in
+    notification.Position = UDim2.new(1, 20, 1, -100)
+    TweenService:Create(notification, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {
+        Position = UDim2.new(1, -320, 1, -100)
+    }):Play()
+
+    -- Animate out after 5 seconds
+    delay(5, function()
+        TweenService:Create(notification, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {
+            Position = UDim2.new(1, 20, 1, -100)
+        }):Play()
+        wait(0.5)
+        notification:Destroy()
+    end)
+
+    return notification
+end
+
+function Components.createGraph(parent, data, options)
+    options = options or {}
+    local graph = Instance.new("Frame")
+    graph.Size = UDim2.new(1, 0, 0, 200)
+    graph.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    graph.BorderSizePixel = 0
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = graph
+
+    local plotArea = Instance.new("Frame")
+    plotArea.Size = UDim2.new(1, -60, 1, -40)
+    plotArea.Position = UDim2.new(0, 50, 0, 10)
+    plotArea.BackgroundTransparency = 1
+    plotArea.Parent = graph
+
+    -- Draw grid lines
+    local function createGridLine(vertical)
+        local line = Instance.new("Frame")
+        line.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+        line.BorderSizePixel = 0
+        if vertical then
+            line.Size = UDim2.new(0, 1, 1, 0)
+        else
+            line.Size = UDim2.new(1, 0, 0, 1)
+        end
+        line.Parent = plotArea
+        return line
+    end
+
+    -- Create grid
+    for i = 0, 10 do
+        local vertLine = createGridLine(true)
+        vertLine.Position = UDim2.new(i/10, 0, 0, 0)
+        
+        local horizLine = createGridLine(false)
+        horizLine.Position = UDim2.new(0, 0, i/10, 0)
+    end
+
+    -- Plot data
+    local maxValue = math.max(unpack(data))
+    local points = {}
+    
+    for i, value in ipairs(data) do
+        local point = Instance.new("Frame")
+        point.Size = UDim2.new(0, 8, 0, 8)
+        point.AnchorPoint = Vector2.new(0.5, 0.5)
+        point.Position = UDim2.new((i-1)/(#data-1), 0, 1 - value/maxValue, 0)
+        point.BackgroundColor3 = options.pointColor or Color3.fromRGB(65, 105, 225)
+        
+        local pointCorner = Instance.new("UICorner")
+        pointCorner.CornerRadius = UDim.new(1, 0)
+        pointCorner.Parent = point
+        
+        point.Parent = plotArea
+        table.insert(points, point)
+        
+        -- Create line to next point if not last point
+        if i < #data then
+            local line = Instance.new("Frame")
+            line.Name = "Line"
+            line.BackgroundColor3 = options.lineColor or Color3.fromRGB(65, 105, 225)
+            line.BorderSizePixel = 0
+            line.Parent = plotArea
+            
+            -- Calculate line position and size
+            local nextValue = data[i + 1]
+            local currentPos = point.Position
+            local nextPos = UDim2.new(i/(#data-1), 0, 1 - nextValue/maxValue, 0)
+            
+            -- Calculate distance and angle between points
+            local deltaX = (nextPos.X.Scale - currentPos.X.Scale) * plotArea.AbsoluteSize.X
+            local deltaY = (nextPos.Y.Scale - currentPos.Y.Scale) * plotArea.AbsoluteSize.Y
+            local distance = math.sqrt(deltaX^2 + deltaY^2)
+            local angle = math.atan2(deltaY, deltaX)
+            
+            line.Size = UDim2.new(0, distance, 0, 2)
+            line.Position = currentPos
+            line.Rotation = math.deg(angle)
+        end
+    end
+
+    graph.Parent = parent
+    return graph
+end
+
+function Components.createContextMenu(items)
+    local menu = Instance.new("Frame")
+    menu.Size = UDim2.new(0, 200, 0, #items * 30 + (#items - 1) * 5)
+    menu.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    menu.BorderSizePixel = 0
+    menu.Visible = false
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = menu
+    
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 5)
+    layout.Parent = menu
+    
+    for _, item in ipairs(items) do
+        local button = Instance.new("TextButton")
+        button.Size = UDim2.new(1, -10, 0, 30)
+        button.Position = UDim2.new(0, 5, 0, 5)
+        button.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+        button.Text = item.text
+        button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        button.TextSize = 14
+        button.Font = Enum.Font.Gotham
+        button.AutoButtonColor = false
+        
+        local buttonCorner = Instance.new("UICorner")
+        buttonCorner.CornerRadius = UDim.new(0, 6)
+        buttonCorner.Parent = button
+        
+        button.MouseButton1Click:Connect(function()
+            if item.callback then item.callback() end
+            menu.Visible = false
+        end)
+        
+        button.MouseEnter:Connect(function()
+            TweenService:Create(button, TweenInfo.new(0.2), {
+                BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+            }):Play()
+        end)
+        
+        button.MouseLeave:Connect(function()
+            TweenService:Create(button, TweenInfo.new(0.2), {
+                BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+            }):Play()
+        end)
+        
+        button.Parent = menu
+    end
+    
+    menu.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("StunningUI")
+    
+    -- Hide menu when clicking outside
+    UserInputService.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local mousePos = UserInputService:GetMouseLocation()
+            if not menu.Visible then return end
+            
+            local menuPos = menu.AbsolutePosition
+            local menuSize = menu.AbsoluteSize
+            
+            if mousePos.X < menuPos.X or mousePos.X > menuPos.X + menuSize.X or
+               mousePos.Y < menuPos.Y or mousePos.Y > menuPos.Y + menuSize.Y then
+                menu.Visible = false
+            end
+        end
+    end)
+    
+    return menu
+end
+
+function Components.createTooltip(text)
+    local tooltip = Instance.new("Frame")
+    tooltip.Size = UDim2.new(0, 200, 0, 30)
+    tooltip.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    tooltip.BorderSizePixel = 0
+    tooltip.Visible = false
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = tooltip
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -10, 1, 0)
+    label.Position = UDim2.new(0, 5, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextSize = 14
+    label.Font = Enum.Font.Gotham
+    label.TextWrapped = true
+    label.Parent = tooltip
+    
+    tooltip.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("StunningUI")
+    
+    -- Update tooltip position with mouse
+    RunService.RenderStepped:Connect(function()
+        if tooltip.Visible then
+            local mousePos = UserInputService:GetMouseLocation()
+            tooltip.Position = UDim2.new(0, mousePos.X + 15, 0, mousePos.Y + 15)
+        end
+    end)
+    
+    return tooltip
+end
+
+return Components 
